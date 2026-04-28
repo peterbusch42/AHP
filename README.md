@@ -1,4 +1,6 @@
-The Analytic Hierarchy Process (AHP) is a structured technique for organizing and analyzing complex decisions, developed by Thomas L. Saaty in the 1970s. It's particularly useful when a decision involves multiple competing criteria and alternatives, blending mathematical analysis with human psychology.
+The Analytic Hierarchy Process (AHP)
+
+AHP is a structured technique for organizing and analyzing complex decisions, developed by Thomas L. Saaty in the 1970s. It's particularly useful when a decision involves multiple competing criteria and alternatives, blending mathematical analysis with human psychology.
 
 The core idea is to break down a complex decision into a hierarchy of smaller, more manageable parts, and then use a series of pairwise comparisons to determine the importance of each part.
 
