@@ -149,7 +149,9 @@ class AHP_GUI(ThemedTk):
         for crit_name in self.decision_data['criteria']:
             crit_id = crit_name_map[crit_name]; alt_judgments = self.db.get_alternative_judgments(decision_id, crit_id)
             if not alt_judgments: continue
-            alt_matrix = self._build_matrix_from_judgments(alt_name_map, alt_judgments); self.decision_data['alternative_matrices'][crit_name] = alt_matrix; self.decision_data['alternative_weights'][crit_name] = calculate_priority_vector(alt_matrix); cr, _ = calculate_consistency(alt_matrix, self.decision_data['alternative_weights'][crit_name]); self.decision_data['consistency_ratios'][f"Alternatives vs. {crit_name}"] = cr
+            alt_matrix = self._build_matrix_from_judgments(alt_name_map, alt_judgments)
+            if alt_matrix is not None:
+                self.decision_data['alternative_matrices'][crit_name] = alt_matrix; self.decision_data['alternative_weights'][crit_name] = calculate_priority_vector(alt_matrix); cr, _ = calculate_consistency(alt_matrix, self.decision_data['alternative_weights'][crit_name]); self.decision_data['consistency_ratios'][f"Alternatives vs. {crit_name}"] = cr
         self._calculate_and_show_results()
     def _build_matrix_from_judgments(self, name_map, judgments):
         n = len(name_map); matrix = np.ones((n, n)); item_list = list(name_map.keys()); name_to_idx = {name: i for i, name in enumerate(item_list)}; id_to_name = {v: k for k, v in name_map.items()}
@@ -200,7 +202,8 @@ class AHP_GUI(ThemedTk):
     def _calculate_and_show_results(self):
         self.geometry("950x750"); crit_weights = self.decision_data['criteria_weights']
         alt_weights_dict = self.decision_data['alternative_weights']; criteria = self.decision_data['criteria']; alternatives = self.decision_data['alternatives']
-        if not criteria or not alternatives: messagebox.showerror("Error", "Cannot calculate results. No criteria or alternatives found."); return
+        if not criteria or not alternatives or not alt_weights_dict:
+             messagebox.showerror("Error", "Could not calculate results. Data may be incomplete."); self._show_welcome_frame(); return
         alt_weights_matrix = np.array([alt_weights_dict[crit] for crit in criteria]).T
         final_scores = alt_weights_matrix @ crit_weights; self._clear_frame()
         top_frame = ttk.Frame(self.container); top_frame.pack(fill="x"); ttk.Label(top_frame, text=f"Results Dashboard for '{self.decision_data['goal']}'", font=("Helvetica", 16, "bold")).pack(pady=10)
