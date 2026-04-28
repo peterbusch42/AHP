@@ -201,11 +201,10 @@ class AHP_GUI(ThemedTk):
         
     def _calculate_and_show_results(self):
         self.geometry("950x750"); crit_weights = self.decision_data['criteria_weights']
-        alt_weights_dict = self.decision_data['alternative_weights']; criteria = self.decision_data['criteria']; alternatives = self.decision_data['alternatives']
-        if not criteria or not alternatives or not alt_weights_dict:
-             messagebox.showerror("Error", "Could not calculate results. Data may be incomplete."); self._show_welcome_frame(); return
+        alt_weights_dict = self.decision_data.get('alternative_weights', {}); criteria = self.decision_data['criteria']; alternatives = self.decision_data['alternatives']
+        if not criteria or not alternatives or not alt_weights_dict: messagebox.showerror("Error", "Could not calculate results. Data may be incomplete or corrupted."); self._show_welcome_frame(); return
         alt_weights_matrix = np.array([alt_weights_dict[crit] for crit in criteria]).T
-        final_scores = alt_weights_matrix @ crit_weights; self._clear_frame()
+        self.final_scores = alt_weights_matrix @ crit_weights; self._clear_frame()
         top_frame = ttk.Frame(self.container); top_frame.pack(fill="x"); ttk.Label(top_frame, text=f"Results Dashboard for '{self.decision_data['goal']}'", font=("Helvetica", 16, "bold")).pack(pady=10)
         notebook = ttk.Notebook(self.container); notebook.pack(fill='both', expand=True, padx=5, pady=5)
         
@@ -225,7 +224,7 @@ class AHP_GUI(ThemedTk):
         self.cr_tree.column("cr_value", anchor="center", width=150); self.cr_tree.column("status", anchor="center", width=120); self.cr_tree.tag_configure('good', background='#d4edda'); self.cr_tree.tag_configure('bad', background='#f8d7da')
         for name, cr in self.decision_data['consistency_ratios'].items(): status = "Acceptable" if cr <= 0.10 else "Inconsistent"; tag = "good" if cr <= 0.10 else "bad"; self.cr_tree.insert("", "end", text=name, values=(f"{cr:.4f}", status), tags=(tag,))
         self.cr_tree.pack(fill="x", pady=5)
-        explanation_text = "What is the Consistency Ratio (CR)?\n\nCR measures how logical your judgments are. A value > 0.10 suggests a contradiction (e.g., A > B, B > C, but C > A) and means the judgments for that set should be reviewed."; ttk.Label(consistency_frame, text=explanation_text, wraplength=700, justify="left").pack(fill="x", pady=15)
+        explanation_text = "What is the Consistency Ratio (CR)?\n\nCR measures how logical your judgments are. A value > 0.10 suggests a contradiction (e.g., A > B, B > C, but C > A) and means the judgments for that set should be re-evaluated."; ttk.Label(consistency_frame, text=explanation_text, wraplength=700, justify="left").pack(fill="x", pady=15)
         
         self.sensitivity_tab_frame = ttk.Frame(notebook, padding=10); notebook.add(self.sensitivity_tab_frame, text='Sensitivity Analysis')
         self._populate_sensitivity_tab()
@@ -234,15 +233,18 @@ class AHP_GUI(ThemedTk):
         ttk.Button(bottom_frame, text="<< Main Menu", command=self._show_welcome_frame).grid(row=0, column=0, padx=5, sticky="w"); ttk.Button(bottom_frame, text="Edit Definition", command=self._show_edit_definition_frame).grid(row=0, column=1, padx=5, sticky="w"); ttk.Button(bottom_frame, text="Edit Judgments", command=self._start_editing).grid(row=0, column=2, padx=5, sticky="w"); ttk.Button(bottom_frame, text="Export Report", command=self._export_results).grid(row=0, column=3, padx=5, sticky="w")
         mc_frame = ttk.LabelFrame(bottom_frame, text="Monte Carlo Analysis"); mc_frame.grid(row=0, column=4, padx=10, sticky="e"); ttk.Label(mc_frame, text="Uncertainty:").grid(row=0, column=0, padx=(5,0), sticky="w"); self.uncertainty_slider = ttk.Scale(mc_frame, from_=0.01, to=0.5, orient="horizontal", length=100); self.uncertainty_slider.set(0.1); self.uncertainty_slider.grid(row=0, column=1); self.uncertainty_label = ttk.Label(mc_frame, text="0.100"); self.uncertainty_label.grid(row=0, column=2); self.uncertainty_slider.config(command=lambda v: self.uncertainty_label.config(text=f"{float(v):.3f}")); ttk.Label(mc_frame, text="Simulations:").grid(row=1, column=0, padx=(5,0), sticky="w"); self.sim_count_entry = ttk.Entry(mc_frame, width=8); self.sim_count_entry.insert(0, "1000"); self.sim_count_entry.grid(row=1, column=1, sticky="w"); self.run_mc_button = ttk.Button(mc_frame, text="Run", command=self._run_and_display_mc, style="Accent.TButton"); self.run_mc_button.grid(row=0, column=3, rowspan=2, padx=5, ipady=5); self.mc_progress_bar = ttk.Progressbar(mc_frame, orient='horizontal', length=200, mode='determinate'); self.mc_progress_bar.grid(row=2, column=0, columnspan=4, sticky="ew", pady=5, padx=5)
         
-        self._draw_score_plot(sorted(zip(alternatives, final_scores), key=lambda x: x[1], reverse=True))
+        self._draw_score_plot(sorted(zip(alternatives, self.final_scores), key=lambda x: x[1], reverse=True))
 
     def _export_results(self):
-        base_path = filedialog.asksaveasfilename(title="Save Report As", defaultextension=".png", filetypes=[("PNG Image", "*.png"), ("All Files", "*.*")])
+        base_path = filedialog.asksaveasfilename(title="Save Report As", defaultextension=".csv", filetypes=[("CSV Files", "*.csv"), ("All Files", "*.*")])
         if not base_path: return
         base_name = base_path.rsplit('.', 1)[0]
         try:
             self.fig.savefig(f"{base_name}_plot.png", dpi=300, bbox_inches='tight')
-            self._export_treeview_to_csv(self.ranking_tree, f"{base_name}_ranking.csv")
+            with open(f"{base_name}_ranking.csv", 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f); writer.writerow(["Alternative", "Final Score"])
+                results = sorted(zip(self.decision_data['alternatives'], self.final_scores), key=lambda x: x[1], reverse=True)
+                for alt, score in results: writer.writerow([alt, score])
             self._export_treeview_to_csv(self.cr_tree, f"{base_name}_consistency.csv")
             messagebox.showinfo("Export Successful", f"Report files saved with base name:\n{base_name}")
         except Exception as e: messagebox.showerror("Export Error", f"An error occurred: {e}")
